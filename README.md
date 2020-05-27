@@ -9,9 +9,9 @@ I take photos and videos with various devices in different moments in time. Each
 
 ### Solution 1
 
-`python etl-photos-videos.py`
+`python etl-syn.py`
 
-Details [here](./ETL-PHOTOS-VIDEOS.md).
+Details [here](./ETL-SYNOLOGY.md).
 
 ### Problem 2
 
@@ -19,8 +19,9 @@ As part of the project of De-Googling myself I had to [export](https://takeout.g
 1. metadata that I might want to drop
 1. inconsistent names (my library spans many smartphone generations with Android and iOS)
 1. directories have weird names (a consequence of file segmentation and a 2GB download limit)
-Basically I want to automate this with a script
+
+I want to automate this.
 
 ### Solution 2
 
-The notebook `remove_gphoto_metadata` has some notes. I did not put it into a script yet cause it's [not worth my time right now](https://xkcd.com/1205/).
+The notebook `remove_gphoto_metadata` has some notes. I did not put it into a script yet cause it's [not worth it now](https://xkcd.com/1205/).

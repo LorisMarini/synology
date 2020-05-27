@@ -1,22 +1,16 @@
 #!/Users/lorismarini/anaconda3/bin/python
 
 """
-This solves the problem of organizing content automatically 
-based on the date of creation, as well as loading it to the 
+This solves the problem of organizing content automatically
+based on the date of creation, as well as loading it to the
 server while keeping track of any errors thet might arise.
 """
 
-import os
-import sys
-import glob
-import shutil
-import dataclasses
-import pandas as pd
-from typing import List, Any
-from tqdm import tqdm
+from imports import *
 
 USAGE = (f"Usage: python {sys.argv[0]} [--help] | ['/path/to/dir_dump'] "
          f"['/path/to/dir_staging'] ['/path/to/dir_server'] ['True'] ['copy']")
+
 
 @dataclasses.dataclass(init=True, repr=True)
 class Arguments:
@@ -27,8 +21,6 @@ class Arguments:
     mode: str = 'copy'
 
 def validate_args(args: List[str]):
-
-    global arguments
 
     try:
         arguments = Arguments(*args)
@@ -56,6 +48,7 @@ def validate_args(args: List[str]):
     if arguments.mode not in allowed_modes:
         raise ValueError(f"mode can be one of {allowed_modes}, passes {arguments.mode}")
 
+    return arguments
 
 def any_words_in_column(df, column, words, verbose=True):
 
@@ -92,7 +85,7 @@ def has_time_info(basename:str) -> bool:
     bn = os.path.splitext(basename)[0].replace("_", " ")
     parts = bn.split(" ")
     parts.append(bn)
-    
+
     any_time = pd.Series([pd.to_datetime(p, errors="coerce") for p in parts])
     if any_time.dropna().shape[0] > 0:
         output = True
@@ -102,7 +95,7 @@ def has_time_info(basename:str) -> bool:
 
 
 def ls_files(*, src_dir:str, recursive=True, ignore=[".json", ".psd"]) -> List[str]:
-    
+
     # Search for all files recursively
     files = [name for name in glob.glob(f"{src_dir}/**/*.*", recursive=recursive)]
     print(f"{len(files)} total files found in src_dir")
@@ -147,7 +140,7 @@ def migration_table(*, files: List, dst_dir:str) -> pd.DataFrame:
 
     # Append time to those that don't have it
     where = df["has_time_in_basename"] == False
-    original_name = df.loc[where, "basename_src"].str.split(".").str[0] 
+    original_name = df.loc[where, "basename_src"].str.split(".").str[0]
     sep = "_"
     timestring = df.loc[where, "created_at_string"]
     original_ext = df.loc[where, "basename_src"].str.split(".").str[1]
@@ -190,11 +183,11 @@ def consolidate_dest_dirs(*, df:pd.DataFrame):
 
 def migrate_file(*, src:str, dst:str, mode:str, replace:bool) -> dict:
 
-    report = {"src": os.path.basename(src), 
-              "dst": os.path.basename(dst), 
-              "copied": False, 
-              "moved": False, 
-              "skipped": False, 
+    report = {"src": os.path.basename(src),
+              "dst": os.path.basename(dst),
+              "copied": False,
+              "moved": False,
+              "skipped": False,
               "error": None}
 
     try:
@@ -248,7 +241,7 @@ def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
         report = migrate_file(src=src, dst=dst, mode=mode, replace=replace)
         reports.append(report)
 
-    # Build a table of migrations                
+    # Build a table of migrations
     report_table = pd.DataFrame(reports)
     copied = report_table["copied"].sum()
     moved = report_table["moved"].sum()
@@ -263,33 +256,33 @@ def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
 
     print(report_table)
 
-    return report_table 
-    
+    return report_table
 
-def transform():
+
+def transform(arguments:Arguments):
 
     # List files in src and ignore some
     files = ls_files(src_dir=arguments.dir_dump, recursive=True)
     if len(files) == 0:
         return
-    
+
     # Build a migration table
     table = migration_table(files=files, dst_dir=arguments.dir_staging)
     if len(table) == 0:
         return
 
     # Execute first migration
-    report = execute_migration_table(df=table, mode=arguments.mode, 
+    report = execute_migration_table(df=table, mode=arguments.mode,
                                      replace=arguments.replace)
 
 
-def load():
+def load(arguments:Arguments):
 
-    print("Loading data to server...") 
-    
+    print("Loading data to server...")
+
     # List files in src and ignore some
     abspath_src = ls_files(src_dir=arguments.dir_staging, recursive=True)
-    
+
     # Build new names
     abspath_dst = [p.replace(arguments.dir_staging, arguments.dir_server) for p in abspath_src]
 
@@ -297,7 +290,7 @@ def load():
     table=pd.DataFrame({"abspath_src": abspath_src, "abspath_dst": abspath_dst})
 
     # Execute first migration
-    report = execute_migration_table(df=table, mode=arguments.mode, 
+    report = execute_migration_table(df=table, mode=arguments.mode,
                                      replace=arguments.replace)
 
 
@@ -312,16 +305,16 @@ def main() -> None:
         return
 
     # Validate and assign arguments to a global variable
-    validate_args(args)
+    arguments = validate_args(args)
 
     # Prepare files to be loaded to server
-    transform()
+    transform(arguments)
 
     # Get user input
     invalid = True
     while invalid:
         ack = input(
-                    f"\nMigration settings are:" 
+                    f"\nMigration settings are:"
                     f"\n\treplace: {arguments.replace}"
                     f"\n\tmode: {arguments.mode}"
                     f"\nCheck {arguments.dir_staging}:"
@@ -331,7 +324,7 @@ def main() -> None:
 
     if ack == "y":
         # Actually load data on the server
-        load()
+        load(arguments)
 
         dirs = glob.glob(f'{arguments.dir_staging}/*')
         for d in dirs:
@@ -339,4 +332,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

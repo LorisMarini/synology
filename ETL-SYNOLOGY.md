@@ -65,6 +65,8 @@ When the files in `staging` are ready we should check that everything looks righ
 
 There are a number of easy fixes here:
 
+1. The script does not distinguish between photos and videos. Should it separate the two? Maybe.
 1. The function `has_time_info` assumes that "-" is used to separate datetime parts, while "\_" is used as a separator. The result is that the filename `FILE_20200101.jpg` is considered not to have time info.
 1. I assume the creation time is the minimum between [ctime and mtime](https://www.gnu.org/software/coreutils/manual/html_node/File-timestamps.html), which is a big assumption. Next I might look at ways to read the creation time from the file metadata (with projects like [exif](https://pypi.org/project/exif/))
+1. Ad warning when mode="copy" and the `dump` folder is over 5GB in size, and wait for user input to proceed.
 1. Add tests

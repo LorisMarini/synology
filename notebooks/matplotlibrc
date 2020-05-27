@@ -1,0 +1,9 @@
+# Full file https://matplotlib.org/tutorials/introductory/customizing.html#customizing-with-matplotlibrc-files
+
+font.family  : DejaVu Sans
+font.style   : normal
+font.variant : normal
+font.weight  : normal
+font.stretch : normal
+font.size    : 14.0
+lines.linewidth : 2
