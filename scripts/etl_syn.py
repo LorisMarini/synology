@@ -7,9 +7,8 @@ server while keeping track of any errors thet might arise.
 """
 
 from imports import *
-
-USAGE = (f"Usage: python {sys.argv[0]} [--help] | ['/path/to/dir_dump'] "
-         f"['/path/to/dir_staging'] ['/path/to/dir_server'] ['True'] ['copy']")
+from helpers import *
+from validate import *
 
 
 @dataclasses.dataclass(init=True, repr=True)
@@ -17,96 +16,9 @@ class Arguments:
     dir_dump: str = '/Users/lorismarini/synology_stg/photo-videos/dump'
     dir_staging: str = '/Users/lorismarini/synology_stg/photo-videos/staging'
     dir_server = '/Volumes/photo'
+    ignore = [".json", ".psd"]
     replace: bool = True
     mode: str = 'copy'
-
-def validate_args(args: List[str]):
-
-    try:
-        arguments = Arguments(*args)
-    except TypeError:
-        raise SystemExit(USAGE)
-
-    # Check type
-    for field in dataclasses.fields(arguments):
-        value = getattr(arguments, field.name)
-        if type(value) != field.type:
-            message = f"Expected type {field.type} for {field.name}, got {type(value)}"
-            raise TypeError(message)
-
-    # Make sure dir_dump is mounted
-    if not os.path.isdir(arguments.dir_dump):
-        raise ValueError(f"Make sure that the directory src={arguments.dir_dump} "
-                         f"is mounted and accessible in the filesystem.")
-
-    # Make sure dir_staging is mounted
-    if not os.path.isdir(arguments.dir_staging):
-        raise ValueError(f"Make sure that the directory dst={arguments.dir_staging}"
-                         f" is mounted and accessible in the filesystem.")
-
-    allowed_modes = ["copy", "move"]
-    if arguments.mode not in allowed_modes:
-        raise ValueError(f"mode can be one of {allowed_modes}, passes {arguments.mode}")
-
-    return arguments
-
-def any_words_in_column(df, column, words, verbose=True):
-
-    if not isinstance(df, pd.DataFrame):
-        raise ValueErorr(f"df expected to be a pandas DataFrame, found {type(df)}")
-
-    if not isinstance(words, list):
-        raise ValueErorr(f"mapping expected to be a list, found {type(words)}")
-
-    if not isinstance(verbose, bool):
-        raise ValueErorr(f"verbose expected to be a boolean, found {type(verbose)}")
-
-    if column not in df.columns:
-        raise ValueErorr(f"column not found in dataframe")
-
-    filters = [df[column].str.contains(w) for w in words]
-
-    # Build a DataFrame with all the boolean series
-    filters_table = pd.DataFrame(filters).T
-
-    # Apply the "or" function along the columns
-    where = filters_table.any(axis=1)
-
-    if verbose:
-        print(f"found {where.sum()} entries - or {round(where.sum()/len(where)*100, 1)}%")
-    return where
-
-
-def has_time_info(basename:str) -> bool:
-    """
-    Determine if there is time information in the basename.
-    It uses pd.to_datetime() to try and parse a timestamp from the name.
-    """
-    bn = os.path.splitext(basename)[0].replace("_", " ")
-    parts = bn.split(" ")
-    parts.append(bn)
-
-    any_time = pd.Series([pd.to_datetime(p, errors="coerce") for p in parts])
-    if any_time.dropna().shape[0] > 0:
-        output = True
-    else:
-        output = False
-    return output
-
-
-def ls_files(*, src_dir:str, recursive=True, ignore=[".json", ".psd"]) -> List[str]:
-
-    # Search for all files recursively
-    files = [name for name in glob.glob(f"{src_dir}/**/*.*", recursive=recursive)]
-    print(f"{len(files)} total files found in src_dir")
-
-    files = pd.DataFrame(files, index=range(len(files)), columns=["files"])
-    where = any_words_in_column(files, column="files", words=ignore, verbose=False)
-    output = files.loc[~where, "files"].to_list()
-
-    print(f"{where.sum()}/{len(files)} files ignored because contain one or more of {ignore}")
-
-    return output
 
 
 def migration_table(*, files: List, dst_dir:str) -> pd.DataFrame:
@@ -162,6 +74,9 @@ def migration_table(*, files: List, dst_dir:str) -> pd.DataFrame:
     print(f"\n{is_duplicate.sum()}/{len(df)} files duplicated and ignored"
           f"\n{output.shape[0]} total files to migrate...")
 
+    # Guess file types
+    output["file_type"] = [guess_file_type(p) for p in output["abspath_src"]]
+
     if output.shape[0] > 0:
         print("\nExample of migration table:")
         print(output.iloc[0].T)
@@ -195,10 +110,12 @@ def migrate_file(*, src:str, dst:str, mode:str, replace:bool) -> dict:
             message = f"DATA INTEGRITY: File {src} expected but not found. Skipping"
             raise ValueError(message)
 
-        # If it already exists and we don't want to relace skip
         if os.path.exists(dst) and not replace:
-            print(f"File already exists in dst and replace={replace}. If you want to relace them pass replace=True")
+            # If it already exists and we don't want to relace skip
             report["skipped"] = True
+
+            print(f"File already exists in dst and replace={replace}. "
+                  f"If you want to relace them pass replace=True")
         else:
             # File in src exists
             if mode =="copy":
@@ -221,7 +138,6 @@ def migrate_file(*, src:str, dst:str, mode:str, replace:bool) -> dict:
 
 
 def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
-
 
     # Create destination directories if they don't exist
     dst_dirs = df["abspath_dst"].apply(lambda x: os.path.dirname(x))
@@ -254,7 +170,7 @@ def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
           f"\n{skipped} files skipped"
           f"\n{error} errors")
 
-    print(report_table)
+    print(tabulate(report_table,headers='firstrow'))
 
     return report_table
 
@@ -262,7 +178,7 @@ def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
 def transform(arguments:Arguments):
 
     # List files in src and ignore some
-    files = ls_files(src_dir=arguments.dir_dump, recursive=True)
+    files = ls_recursive(src_dir=arguments.dir_dump, ignore=arguments.ignore)
     if len(files) == 0:
         return
 
@@ -281,7 +197,7 @@ def load(arguments:Arguments):
     print("Loading data to server...")
 
     # List files in src and ignore some
-    abspath_src = ls_files(src_dir=arguments.dir_staging, recursive=True)
+    abspath_src = ls_recursive(src_dir=arguments.dir_staging, ignore=arguments.ignore)
 
     # Build new names
     abspath_dst = [p.replace(arguments.dir_staging, arguments.dir_server) for p in abspath_src]
@@ -296,39 +212,40 @@ def load(arguments:Arguments):
 
 def main() -> None:
 
-    # Extract arguments
-    args = sys.argv[1:]
-
-    # Optionally print usage if required
-    if args and args[0] == "--help":
-        print(USAGE)
-        return
+    # Instantiate default arguments object
+    arguments = Arguments()
 
     # Validate and assign arguments to a global variable
-    arguments = validate_args(args)
+    validate_args(arguments)
 
     # Prepare files to be loaded to server
     transform(arguments)
 
     # Get user input
-    invalid = True
-    while invalid:
-        ack = input(
-                    f"\nMigration settings are:"
-                    f"\n\treplace: {arguments.replace}"
-                    f"\n\tmode: {arguments.mode}"
-                    f"\nCheck {arguments.dir_staging}:"
-                    f"\n\tDo you want to load data to the server? y/n: ")
-        if ack in(["y", "n"]):
-            invalid = False
+    options = ["y", "n"]
+    question = (f"\nMigration settings are:"
+                f"\n\treplace: {arguments.replace}"
+                f"\n\tmode: {arguments.mode}"
+                f"\nCheck {arguments.dir_staging}:"
+                f"\n\tDo you want to load data to the server? {'/'.join(options)}: ")
 
-    if ack == "y":
+    answer_a = cli_ask_question(question=question, options=options)
+
+    if answer_a == "y":
         # Actually load data on the server
         load(arguments)
 
-        dirs = glob.glob(f'{arguments.dir_staging}/*')
-        for d in dirs:
-            shutil.rmtree(d)
+        options = ["y", "n"]
+        question = (f"\nDo you want to clean {arguments.dir_staging}?")
+        answer_b = cli_ask_question(question=question, options=options)
+
+        if answer_b == "y":
+            clean_directory(arguments.dir_staging)
+        else:
+            print("Cleaning skipped.")
+    else:
+        print(f"load skipped. All files are ready to load in {arguments.dir_staging}. Abortng.")
+
 
 if __name__ == "__main__":
     main()

@@ -16,7 +16,7 @@ From an arbitrarily-nested directories and files, the script should:
 
 **Example of tree**
 
-```
+```zsh
     ├── dump
     │   ├── test_upload.json
     │   ├── VID_20190513_211732488.mp4
@@ -43,7 +43,8 @@ The script behaviour can be changed with 2 attributes:
 - `mode`: one of ['copy', 'move']. Choose 'copy' for idempotency.
 
 Modify this part of the script accordingly:
-```
+
+```python
 dir_dump: str = '/Users/lorismarini/synology_stg/photo-videos/dump'
 dir_staging: str = '/Users/lorismarini/synology_stg/photo-videos/staging'
 dir_server = '/Volumes/photo'
