@@ -9,7 +9,6 @@ I take photos and videos with various devices in different moments in time. Each
 
 ![](images/etl-synology.png)
 
-
 From an arbitrarily-nested directories and files, the script should:
 
 1. **list** recursively inside `dump`
@@ -76,3 +75,11 @@ The script returns a report with details of each migration from `dump` to `stagi
 
 When the files in `staging` are ready we should check that everything looks right. The last step is to load data to the server:
 ![](images/screenshot3.png)
+
+**Quick Improvements**
+
+There are a number of easy fixes here:
+
+1. The function `has_time_info` assumes that "-" is used to separate datetime parts, while "\_" is used as a separator. The result is that the filename `FILE_20200101.jpg` is considered not to have time info.
+1. I assume the creation time is the minimum between [ctime and mtime](https://www.gnu.org/software/coreutils/manual/html_node/File-timestamps.html), which is a big assumption. Next I might look at ways to read the creation time from the file metadata (with projects like [exif](https://pypi.org/project/exif/))
+1. Add some basic tests
