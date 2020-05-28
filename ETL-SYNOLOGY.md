@@ -46,7 +46,7 @@ Modify this part of the script accordingly:
 
 ```python
 dir_dump: str = '/Users/lorismarini/synology_stg/photo-videos/dump'
-dir_staging: str = '/Users/lorismarini/synology_stg/photo-videos/staging'
+staging_dirs: str = '/Users/lorismarini/synology_stg/photo-videos/staging'
 dir_server = '/Volumes/photo'
 replace: bool = True
 mode: str = 'copy'

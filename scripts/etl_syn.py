@@ -10,25 +10,50 @@ from imports import *
 from helpers import *
 from validate import *
 
-@dataclasses.dataclass(init=True, repr=True)
+
+def default_staging_paths():
+
+    staging_home = '/Users/lorismarini/ds918/staging'
+
+    output = {"HOME": staging_home,
+              "image": f"{staging_home}/image",
+              "video": f"{staging_home}/video",
+              "audio": f"{staging_home}/audio",
+              "archive": f"{staging_home}/archive"}
+    return output
+
+def default_server_paths():
+
+    server_home = '/Volumes'
+
+    output = {"HOME": server_home,
+              "image": f"{server_home}/photo",
+              "video": f"{server_home}/video",
+              "audio": f"{server_home}/photo",
+              "archive": f"{server_home}/documents"}
+    return output
+
+def default_ignore():
+    return ['.jsonl', '.json']
+
+
+@dataclass(init=True, repr=True)
 class Arguments:
-    # Local dump folder
-    dump_home: str = '/Users/lorismarini/synology_stg/photo-videos/dump'
-    # Local staging folder
-    staging_home: str = "/Users/lorismarini/synology_stg/photo-videos/staging"
-    # Intermediate staging directories for different file types
-    staging_dirs: dict = {"image": f"{staging_home}/image",
-                          "video": f"{staging_home}/video",
-                          "audio": f"{staging_home}/audio",
-                          "archive": f"{staging_home}/archive"}
-    dir_staging: str = '/Users/lorismarini/synology_stg/photo-videos/staging'
-    dir_server = '/Volumes/photo'
-    ignore = [".json", ".psd"]
+    # Dump directory
+    dump: str = field(default ='/Users/lorismarini/ds918/dump')
+    # Staging directories
+    staging: dict = field(default_factory = default_staging_paths)
+    # server directories
+    server: dict = field(default_factory = default_server_paths)
+    # Any file extensions to ignore
+    ignore: list = field(default_factory = default_ignore)
+    # If existing files are found
     replace: bool = True
+    # Migration mode
     mode: str = 'copy'
 
 
-def migration_table(*, df: pd.DataFrame, dst_dir:str) -> pd.DataFrame:
+def migration_table(*, df: pd.DataFrame, dirs:dict) -> pd.DataFrame:
     """
     Extends a files table with two columns:
         - `dirname_dst` (absolute path to the destination directory)
@@ -42,8 +67,15 @@ def migration_table(*, df: pd.DataFrame, dst_dir:str) -> pd.DataFrame:
     # Create basename of file at destination
     df = create_basename_dst(df)
 
+    # Add column "dirname_dst"
+    s = pd.Series(data=dirs, name="parentdir_dst")
+    s.index.name="key"
+    type_directory_map = s.to_frame().reset_index()
+    df = pd.merge(df, type_directory_map, how="left",
+                  left_on="file_type", right_on="key").drop(columns=["key"])
+
     # Name of the containing directory
-    df["dirname_dst"] = dst_dir + "/" + df["created_at"].dt.date.astype(str)
+    df["dirname_dst"] = df["parentdir_dst"] + "/" + df["created_at"].dt.date.astype(str)
     df["abspath_dst"] = df["dirname_dst"] + "/" + df["basename_dst"]
 
     # Deduplicate files based on the destination basename (includes timestamp)
@@ -113,7 +145,7 @@ def migrate_file(*, src:str, dst:str, mode:str, replace:bool) -> dict:
     return report
 
 
-def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
+def execute_migration(*, df:pd.DataFrame, mode:str, replace:str):
 
     # Create destination directories if they don't exist
     dst_dirs = df["abspath_dst"].apply(lambda x: os.path.dirname(x))
@@ -121,7 +153,6 @@ def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
     _ = [os.makedirs(d, exist_ok=True) for d in dst_dirs_unique]
 
     reports = []
-
     # tqdm wraps the iterable and roduces a progress bar
     for i in tqdm(df.index):
 
@@ -146,15 +177,13 @@ def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
           f"\n{skipped} files skipped"
           f"\n{error} errors")
 
-    print(tabulate(report_table,headers='firstrow'))
-
-    return report_table
+    print(tabulate(report_table, headers=list(report_table.columns)))
 
 
-def transform(arguments:Arguments):
+def stage(arguments:Arguments):
 
     # List files in src and ignore some
-    files = ls_recursive(src_dir=arguments.dump_home, ignore=arguments.ignore)
+    files = ls_recursive(src_dir=arguments.dump, ignore=arguments.ignore)
     if len(files) == 0:
         return
 
@@ -162,12 +191,12 @@ def transform(arguments:Arguments):
     meta = file_metadata(files=files)
 
     # Build a migration table
-    table = migration_table(df=meta, dst_dir=arguments.dir_staging)
+    table = migration_table(df=meta, dirs=arguments.staging)
     if len(table) == 0:
         return
 
     # Execute first migration
-    report = execute_migration_table(df=table, mode=arguments.mode,
+    report = execute_migration(df=table, mode=arguments.mode,
                                      replace=arguments.replace)
 
 
@@ -176,17 +205,18 @@ def load(arguments:Arguments):
     print("Loading data to server...")
 
     # List files in src and ignore some
-    abspath_src = ls_recursive(src_dir=arguments.dir_staging, ignore=arguments.ignore)
+    files = ls_recursive(src_dir=arguments.staging["HOME"], ignore=arguments.ignore)
 
-    # Build new names
-    abspath_dst = [p.replace(arguments.dir_staging, arguments.dir_server) for p in abspath_src]
+    # Build a table of files metadata
+    meta = file_metadata(files=files)
 
-    # Prepare table
-    table=pd.DataFrame({"abspath_src": abspath_src, "abspath_dst": abspath_dst})
+    # Build a migration table
+    table = migration_table(df=meta, dirs=arguments.server)
+    if len(table) == 0:
+        return
 
-    # Execute first migration
-    report = execute_migration_table(df=table, mode=arguments.mode,
-                                     replace=arguments.replace)
+     # Execute migration
+    report = execute_migration(df=table, mode=arguments.mode, replace=arguments.replace)
 
 
 def main() -> None:
@@ -198,14 +228,16 @@ def main() -> None:
     validate_args(arguments)
 
     # Prepare files to be loaded to server
-    transform(arguments)
+    stage(arguments)
+
+    staging_home = arguments.staging["HOME"]
 
     # Get user input
     options = ["y", "n"]
     question = (f"\nMigration settings are:"
                 f"\n\treplace: {arguments.replace}"
                 f"\n\tmode: {arguments.mode}"
-                f"\nCheck {arguments.dir_staging}:"
+                f"\nCheck {staging_home}:"
                 f"\n\tDo you want to load data to the server? {'/'.join(options)}: ")
 
     answer_a = cli_ask_question(question=question, options=options)
@@ -215,15 +247,15 @@ def main() -> None:
         load(arguments)
 
         options = ["y", "n"]
-        question = (f"\nDo you want to clean {arguments.dir_staging}?")
+        question = (f"\nDo you want to clean {staging_home}?")
         answer_b = cli_ask_question(question=question, options=options)
 
         if answer_b == "y":
-            clean_directory(arguments.dir_staging)
+            clean_directory(staging_home)
         else:
             print("Cleaning skipped.")
     else:
-        print(f"load skipped. All files are ready to load in {arguments.dir_staging}. Abortng.")
+        print(f"load skipped. All files are ready to load in {staging_home}. Abortng.")
 
 
 if __name__ == "__main__":

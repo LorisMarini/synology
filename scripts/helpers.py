@@ -9,7 +9,6 @@ def ls_recursive(*, src_dir:str, ignore=[]) -> List[str]:
     """
     # Search for all files recursively
     files = [name for name in glob.glob(f"{src_dir}/**/*.*", recursive=True)]
-    print(f"{len(files)} total files found in src_dir")
 
     if ignore:
         files = pd.DataFrame(files, index=range(len(files)), columns=["files"])
@@ -18,6 +17,8 @@ def ls_recursive(*, src_dir:str, ignore=[]) -> List[str]:
         print(f"{where.sum()}/{len(files)} files ignored because contain one or more of {ignore}")
     else:
         output = files
+        
+    print(f"{len(files)} total files found in src_dir")
     return output
 
 
@@ -82,20 +83,27 @@ def extensions_and_types():
     """
     Builds a dataframe of known file extensions and their types (image, video, audio, archive).
     """
-    image_ext = [".xmp", ".jpg", ".jpeg", ".png", ".gif", ".cr2", ".tif", ".bmp", ".psd"]
-    image = list(zip(["image"]*len(image_ext), image_ext))
+    image_ext = [".xmp", ".jpg", ".jpeg", ".png", ".gif", ".cr2",
+                 ".tif", ".bmp", ".psd", ".ico", ".svg"]
 
     video_ext = [".mp4", ".mov", ".avi", ".wmv", ".web"]
-    video = list(zip(["video"]*len(video_ext), video_ext))
 
     audio_ext = [".mid",".mp3",".m4a",".ogg",".fla",".wav",".amr"]
-    audio = list(zip(["audio"]*len(audio_ext), audio_ext))
 
-    archive_ext = [".epub", ".zip",".tar",".gz",".bz2",".pdf",".exe",".ps",".sqlite"]
+    archive_ext = [".epub", ".zip",".tar",".gz",".bz2",".pdf",".exe",".ps",".sqlite",
+                   ".doc",".docx",".xls",".xlsx",".ppt",".pptx",".odt",".ods",".odp",
+                   ".rtf"]
+
+    image = list(zip(["image"]*len(image_ext), image_ext))
+    video = list(zip(["video"]*len(video_ext), video_ext))
+    audio = list(zip(["audio"]*len(audio_ext), audio_ext))
     archive =  list(zip(["archive"]*len(archive_ext), archive_ext))
 
     output = pd.DataFrame(image+video+audio+archive, columns=["file_type", "file_ext"])
     return output
+
+
+
 
 
 def cli_ask_question(*, question:str, options:List[str]):
