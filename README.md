@@ -2,26 +2,54 @@
 
 Utilities to simplify my interaction with Synology 918. Pretty much a WIP, only tested on macOS.
 
-### Problem 1
+### Problem
 ![](images/etl-synology.png)
 
-I take photos and videos with various devices in different moments in time. Each device names and organises files differently. I want to dump all of them in a directory (call it `dump`) and find them *well organised* in my Synology mount point (a RAID6 volume with integrity protection, automatically indexed and used by both DSPhotos and Moments to manage my digital memories).
+A zoo of devices generates content of different types, sizes, and naming and conventions that sit on various storage devices. To bring these to life, I built a home server. I would like:
 
-### Solution 1
+1. dump all content in one folder
+1. run a script
+1. find all content neatly arranged on my server
 
-`python etl-syn.py`
+**Must Haves**
 
-Details [here](./ETL-SYNOLOGY.md).
+From an arbitrarily-nested directories and file types, I want to:
 
-### Problem 2
+1. **list** all files recursively
+1. determine their **creation time**
+1. **ignore** names based on specific patterns (e.g. '.json' or '.psd')
+1. **fuzzy-search** time information in the file name
+1. **add timestamp** `_YYYY-MM-DD_H-M-S` to files that need it
+1. deduplicate files (filename + extension + creation time)
+1. organise files in tree based on file type and creation date `YYYY-MM-DD`
+1. upload the new structure to my server
+1. Graceful handling of errors and unexpected situations
+1. Option to stage files before loading to the final destination
+1. Option to inspect a migration plan to see what, why, and how it happened.
 
-As part of the project of De-Googling myself I had to [export](https://takeout.google.com/settings/takeout?pli=1) my memories from Google Photos and load it back to my Synology. However, exports have:
-1. metadata that I might want to drop
-1. inconsistent names (my library spans many smartphone generations with Android and iOS)
-1. directories have weird names (a consequence of file segmentation and a 2GB download limit)
+### Solution
 
-I want to automate this.
+Clone the repo, cd into it and run:
 
-### Solution 2
+`python run.py`
 
-The notebook `remove_gphoto_metadata` has some notes. I did not put it into a script yet cause it's [not worth it now](https://xkcd.com/1205/).
+**Example of tree**
+
+```zsh
+    ├── dump
+    │   ├── test_upload.json
+    │   ├── VID_20190513_211732488.mp4
+    │   ├── business_id_test.jsonl
+    │   ├── dir
+    │   |   └── IMG_5712-2.jpg
+    │   ├── dir2
+    │       └── dir3
+    │           └── wedding_primo_ballo.mp4
+    └── staging
+        ├── 2015-10-04
+        │   └── IMG_5712-2_20151004_013542.jpg
+        ├── 2019-08-28
+        │   └── wedding_primo_ballo_20190828_072354.mp4
+        └── 2019-09-07
+            └── VID_20190513_211732488.mp4
+```

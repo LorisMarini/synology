@@ -1,66 +1,6 @@
 from imports import *
 
 
-def ls_recursive(*, src_dir:str, ignore=[]) -> List[str]:
-    """
-    Returns a list of absolute paths (str) of all objects
-    inside src_dir. If ignore is passed, it drops all files
-    containing any of the patterns to ignore.
-    """
-    # Search for all files recursively
-    files = [name for name in glob.glob(f"{src_dir}/**/*.*", recursive=True)]
-
-    if ignore:
-        files = pd.DataFrame(files, index=range(len(files)), columns=["files"])
-        where = any_words_in_column(files, column="files", words=ignore, verbose=False)
-        output = files.loc[~where, "files"].to_list()
-        print(f"{where.sum()}/{len(files)} files ignored because contain one or more of {ignore}")
-    else:
-        output = files
-        
-    print(f"{len(files)} total files found in src_dir")
-    return output
-
-
-def file_metadata(files:List[str]) -> pd.DataFrame:
-    """
-    Takes a list of absolute pahts to files on a mounted volume,
-    and returns a table with file metadata.
-    """
-    # Collect file stats for each file
-    file_stats = [os.stat(f) for f in files]
-    print(f"{len(files)} files stats collected...")
-
-    # Unpack metrics. Full list of metrics at:
-    # https://docs.python.org/3.8/library/os.html#os.stat_result.st_size
-    all_stats = [{"st_mtime": int(fstats.st_mtime),
-                  "st_ctime": int(fstats.st_ctime),
-                  "st_size": int(fstats.st_size)} for fstats in file_stats]
-
-    # Build a table
-    df = pd.DataFrame(all_stats)
-    # Cast datetimes
-    df["st_mtime"] = pd.to_datetime(df["st_mtime"], unit="s")
-    df["st_ctime"] = pd.to_datetime(df["st_ctime"], unit="s")
-    # Extract basenames
-    basenames = [os.path.basename(f) for f in files]
-    df["abspath_src"] = files
-    df["basename_src"] = basenames
-
-    # Add file anme and extension
-    df["filename_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[0])
-    df["extension_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[1])
-
-    # Assume creation time is min(c_time, m_time)
-    df["created_at"] = df[["st_mtime","st_ctime"]].min(axis=1)
-    print(f"stats table built...")
-
-    output = add_filetype(table=df)
-    print(f"file types inferred...")
-
-    return output
-
-
 def add_filetype(*, table:pd.DataFrame) -> pd.DataFrame:
     """
     Expects two columns in table: "basename_src", "extension_src"
@@ -72,9 +12,13 @@ def add_filetype(*, table:pd.DataFrame) -> pd.DataFrame:
     # Left join table with file_types
     output = pd.merge(table, lookup, how="left", left_on="extension_src", right_on="file_ext")
 
-    missing = list(output[output["file_type"].isnull()]["extension_src"].unique())
-    if missing:
-        raise ValueError(f"Could not determine the file type for the following extensions {missing}.")
+    missing_types = output["file_type"].isnull()
+    missing_types_tot = missing_types.sum()
+    unknown_extensions = list(output.loc[missing_types, "extension_src"].unique())
+
+    if missing_types_tot>0:
+        Warning(f"Ignoring a total of {missing_types_tot} files with unknown extensions {unknown_extensions}.")
+        output = output.dropna(axis=0, how="any",subset=["file_type"]).reset_index(drop=True)
 
     return output
 
@@ -101,9 +45,6 @@ def extensions_and_types():
 
     output = pd.DataFrame(image+video+audio+archive, columns=["file_type", "file_ext"])
     return output
-
-
-
 
 
 def cli_ask_question(*, question:str, options:List[str]):
@@ -178,6 +119,7 @@ def create_basename_dst(df:pd.DataFrame) ->pd.DataFrame:
         raise ValueError("Some files are missing a destination basename.")
 
     return df
+
 
 def has_time_info(basename:str) -> bool:
     """
