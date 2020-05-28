@@ -21,50 +21,34 @@ class Arguments:
     mode: str = 'copy'
 
 
-def migration_table(*, files: List, dst_dir:str) -> pd.DataFrame:
-
-    # Extract basenames of files to keep
-    basenames = [os.path.basename(f) for f in files]
-
-    # files_all
-    file_stats = [os.stat(f) for f in files]
-    print(f"{len(files)} files stats collected...")
-
-    # Collect file stats for each file
-    all_stats = [{"st_mtime": int(fstats.st_mtime), "st_ctime": int(fstats.st_ctime)} for fstats in file_stats]
-
-    # Build table
-    df = pd.DataFrame(all_stats)
-    df["abspath_src"] = files
-    df["basename_src"] = basenames
-
-    # Parse times as datetime objects
-    df["st_mtime"] = pd.to_datetime(df["st_mtime"], unit="s")
-    df["st_ctime"] = pd.to_datetime(df["st_ctime"], unit="s")
-
-    # Take the minimum of c_time and modified time as the creation time
-    df["created_at"] = df[["st_mtime","st_ctime"]].min(axis=1)
-    df["created_at_string"] = df["created_at"].dt.strftime("%Y%m%d_%H%M%S")
-    print(f"stats table built...")
+def migration_table(*, df: pd.DataFrame, dst_dir:str) -> pd.DataFrame:
+    """
+    basename_src:
+    filename_src:
+    extension_src:
+    created_at:
+    """
 
     # Determine if there is time information in the basename
-    df["has_time_in_basename"] = df["basename_src"].apply(has_time_info)
+    has_time = df["basename_src"].apply(has_time_info)
 
     # Append time to those that don't have it
-    where = df["has_time_in_basename"] == False
-    original_name = df.loc[where, "basename_src"].str.split(".").str[0]
-    sep = "_"
-    timestring = df.loc[where, "created_at_string"]
-    original_ext = df.loc[where, "basename_src"].str.split(".").str[1]
-    df.loc[where, "basename_dst"] = original_name + sep + timestring + "." + original_ext
+    where = has_time == False
+
+    df["filename_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[0])
+    df["extension_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[1])
+
+    # Build new name
+    n = df.loc[where, "filename_src"]
+    e = df.loc[where, "extension_src"]
+    t = df["created_at"].dt.strftime("%Y%m%d_%H%M%S")[where]
+    df.loc[where, "basename_dst"] = n + "_" + t + e
 
     # Preserve name if it has time info
-    where = df["has_time_in_basename"] == True
-    df.loc[where, "basename_dst"] = df.loc[where, "basename_src"]
+    df.loc[has_time == True, "basename_dst"] = df.loc[has_time == True, "basename_src"]
 
     # Name of the containing directory
-    dirname = df["created_at"].dt.date.astype(str)
-    df["dirname_dst"] = dst_dir + "/" + dirname
+    df["dirname_dst"] = dst_dir + "/" + df["created_at"].dt.date.astype(str)
     df["abspath_dst"] = df["dirname_dst"] + "/" + df["basename_dst"]
 
     # Deduplicate files based on the destination basename (includes timestamp)
@@ -73,9 +57,6 @@ def migration_table(*, files: List, dst_dir:str) -> pd.DataFrame:
 
     print(f"\n{is_duplicate.sum()}/{len(df)} files duplicated and ignored"
           f"\n{output.shape[0]} total files to migrate...")
-
-    # Guess file types
-    output["file_type"] = [guess_file_type(p) for p in output["abspath_src"]]
 
     if output.shape[0] > 0:
         print("\nExample of migration table:")
@@ -182,8 +163,11 @@ def transform(arguments:Arguments):
     if len(files) == 0:
         return
 
+    # Build a table of files metadata
+    meta = file_metadata(files=files)
+
     # Build a migration table
-    table = migration_table(files=files, dst_dir=arguments.dir_staging)
+    table = migration_table(df=meta, dst_dir=arguments.dir_staging)
     if len(table) == 0:
         return
 
