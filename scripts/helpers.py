@@ -142,6 +142,35 @@ def any_words_in_column(df, column, words, verbose=True):
     return where
 
 
+def create_basename_dst(df:pd.DataFrame) ->pd.DataFrame:
+    """
+    Creates the column `basename_dst`, based on original
+    filename (`filename_src`) and extension (`extension_src`),
+     as well as a timestamp if `filename_src` does not contain
+     time info.
+    """
+
+    df["basename_dst"] = None
+
+    # Determine if there is time information in the basename
+    has_time = df["basename_src"].apply(has_time_info)
+
+    # Append time to those that don't have it
+    where = has_time == False
+    # Build new name
+    n = df.loc[where, "filename_src"]
+    e = df.loc[where, "extension_src"]
+    t = df["created_at"].dt.strftime("%Y%m%d_%H%M%S")[where]
+    df.loc[where, "basename_dst"] = n + "_" + t + e
+
+    # Preserve name if it has time info
+    df.loc[has_time == True, "basename_dst"] = df.loc[has_time == True, "basename_src"]
+
+    if df["basename_dst"].count() < df.shape[0]:
+        raise ValueError("Some files are missing a destination basename.")
+
+    return df
+
 def has_time_info(basename:str) -> bool:
     """
     Determine if there is time information in the basename.

@@ -10,10 +10,17 @@ from imports import *
 from helpers import *
 from validate import *
 
-
 @dataclasses.dataclass(init=True, repr=True)
 class Arguments:
-    dir_dump: str = '/Users/lorismarini/synology_stg/photo-videos/dump'
+    # Local dump folder
+    dump_home: str = '/Users/lorismarini/synology_stg/photo-videos/dump'
+    # Local staging folder
+    staging_home: str = "/Users/lorismarini/synology_stg/photo-videos/staging"
+    # Intermediate staging directories for different file types
+    staging_dirs: dict = {"image": f"{staging_home}/image",
+                          "video": f"{staging_home}/video",
+                          "audio": f"{staging_home}/audio",
+                          "archive": f"{staging_home}/archive"}
     dir_staging: str = '/Users/lorismarini/synology_stg/photo-videos/staging'
     dir_server = '/Volumes/photo'
     ignore = [".json", ".psd"]
@@ -23,29 +30,17 @@ class Arguments:
 
 def migration_table(*, df: pd.DataFrame, dst_dir:str) -> pd.DataFrame:
     """
-    basename_src:
-    filename_src:
-    extension_src:
-    created_at:
+    Extends a files table with two columns:
+        - `dirname_dst` (absolute path to the destination directory)
+        - `abspath_dst` (absolute of the file at destination)
+    df should have:
+        - basename_src:
+        - filename_src:
+        - extension_src:
+        - created_at:
     """
-
-    # Determine if there is time information in the basename
-    has_time = df["basename_src"].apply(has_time_info)
-
-    # Append time to those that don't have it
-    where = has_time == False
-
-    df["filename_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[0])
-    df["extension_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[1])
-
-    # Build new name
-    n = df.loc[where, "filename_src"]
-    e = df.loc[where, "extension_src"]
-    t = df["created_at"].dt.strftime("%Y%m%d_%H%M%S")[where]
-    df.loc[where, "basename_dst"] = n + "_" + t + e
-
-    # Preserve name if it has time info
-    df.loc[has_time == True, "basename_dst"] = df.loc[has_time == True, "basename_src"]
+    # Create basename of file at destination
+    df = create_basename_dst(df)
 
     # Name of the containing directory
     df["dirname_dst"] = dst_dir + "/" + df["created_at"].dt.date.astype(str)
@@ -159,7 +154,7 @@ def execute_migration_table(*, df:pd.DataFrame, mode:str, replace:str):
 def transform(arguments:Arguments):
 
     # List files in src and ignore some
-    files = ls_recursive(src_dir=arguments.dir_dump, ignore=arguments.ignore)
+    files = ls_recursive(src_dir=arguments.dump_home, ignore=arguments.ignore)
     if len(files) == 0:
         return
 
