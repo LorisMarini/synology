@@ -247,7 +247,7 @@ def main() -> None:
         load(arguments)
 
         options = ["y", "n"]
-        question = (f"\nDo you want to clean {staging_home}?")
+        question = (f"\nDo you want to clean {staging_home}? {'/'.join(options)}: ")
         answer_b = cli_ask_question(question=question, options=options)
 
         if answer_b == "y":
