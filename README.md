@@ -3,9 +3,12 @@
 A tool to organise my digital life from a dump folder to various drives on my home server (WIP).
 
 ### Problem
+
+A zoo of devices generates content of different types, sizes, and naming and conventions that sit on various storage devices.
+
 ![](images/etl-synology.png)
 
-A zoo of devices generates content of different types, sizes, and naming and conventions that sit on various storage devices. To bring these to life, I built a home server. I would like:
+To bring these to life, I built a home server. I would like:
 
 1. dump all content in one folder
 1. run a script
@@ -31,7 +34,7 @@ Clone the repo, cd into it, and run:
 
 `python run.py`
 
-**How it works**
+###How
 
 A migration is made of two function calls:
 - plan()

@@ -23,7 +23,7 @@ def plan(*, source:str, destinations:dict, ignore:bool) -> pd.DataFrame:
     description = pd.merge(shallow, deep, how="outer", on="abspath_src")
 
     # Build a migration table
-    table = migration_table(df=description, dirs=arguments.server)
+    table = migration_table(df=description, dirs=destinations)
     print("Plan ready.")
 
     return table

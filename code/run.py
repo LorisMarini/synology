@@ -12,10 +12,12 @@ from helpers import *
 from plan import *
 from execute import *
 
+code = pathlib.Path(__file__).parent.absolute()
+data = code.parent / "data"
 
 def default_staging_paths():
 
-    staging_home = './data/staging'
+    staging_home = str(data / "staging")
 
     output = {"HOME": staging_home,
               "image": f"{staging_home}/image",
@@ -26,7 +28,7 @@ def default_staging_paths():
 
 def default_server_paths():
 
-    server_home = './data/server'
+    server_home = str(data / "server")
 
     output = {"HOME": server_home,
               "image": f"{server_home}/photo",
@@ -43,7 +45,7 @@ def default_ignore():
 class Arguments:
     # Dump directory
     # dump: str = field(default ='/Users/lorismarini/ds918/dump')
-    dump: str = field(default ="./data/staging")
+    dump: str = field(default = str(data / "dump"))
     # Staging directories
     staging: dict = field(default_factory = default_staging_paths)
     # server directories
