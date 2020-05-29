@@ -15,7 +15,7 @@ from execute import *
 
 def default_staging_paths():
 
-    staging_home = '/Volumes/loris/VideoStaging'
+    staging_home = './data/staging'
 
     output = {"HOME": staging_home,
               "image": f"{staging_home}/image",
@@ -26,7 +26,7 @@ def default_staging_paths():
 
 def default_server_paths():
 
-    server_home = '/Volumes'
+    server_home = './data/server'
 
     output = {"HOME": server_home,
               "image": f"{server_home}/photo",
@@ -43,7 +43,7 @@ def default_ignore():
 class Arguments:
     # Dump directory
     # dump: str = field(default ='/Users/lorismarini/ds918/dump')
-    dump: str = field(default ="/Volumes/loris/VideoDump")
+    dump: str = field(default ="./data/staging")
     # Staging directories
     staging: dict = field(default_factory = default_staging_paths)
     # server directories
@@ -53,7 +53,7 @@ class Arguments:
     # If existing files are found
     replace: bool = False
     # Migration mode
-    mode: str = 'move'
+    mode: str = 'copy'
 
 
 def main() -> None:
@@ -127,7 +127,6 @@ def main() -> None:
         else:
             print(f"\nAbortng.")
             return
-
 
 
 if __name__ == "__main__":

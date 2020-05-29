@@ -1,6 +1,6 @@
 ## What
 
-Utilities to simplify my interaction with Synology 918. Pretty much a WIP, only tested on macOS.
+A tool to organise my digital life from a dump folder to various drives on my home server (WIP).
 
 ### Problem
 ![](images/etl-synology.png)
@@ -16,22 +16,36 @@ A zoo of devices generates content of different types, sizes, and naming and con
 From an arbitrarily-nested directories and file types, I want to:
 
 1. **list** all files recursively
-1. determine their **creation time**
-1. **ignore** names based on specific patterns (e.g. '.json' or '.psd')
+1. **timestamp** files based on creation time `_YYYY-MM-DD_H-M-S`
 1. **fuzzy-search** time information in the file name
-1. **add timestamp** `_YYYY-MM-DD_H-M-S` to files that need it
-1. deduplicate files (filename + extension + creation time)
-1. organise files in tree based on file type and creation date `YYYY-MM-DD`
-1. upload the new structure to my server
-1. Graceful handling of errors and unexpected situations
-1. Option to stage files before loading to the final destination
-1. Option to inspect a migration plan to see what, why, and how it happened.
+1. **deduplicate** files (filename + extension + creation time)
+1. **organise** files in tree based on file type and creation date `YYYY-MM-DD`
+1. **load** the new structure to my server
+1. **handle** errors gracefully
+1. **stage** files before loading to the final destination (optional)
+1. **audit** data migration plans.
 
 ### Solution
 
-Clone the repo, cd into it and run:
+Clone the repo, cd into it, and run:
 
 `python run.py`
+
+**How it works**
+
+A migration is made of two function calls:
+- plan()
+- execute()
+
+`plan()` implements a migration plan and includes these steps:
+
+1. Discover all files in dump
+1. Build a table to describe them (name, extension, time, size, type)
+1. Extend the table with information of where they should be moved to (migration table)
+
+`execute()` takes the original absolute path of each file (abspath_src) and their new absolute path at the destination (abspath_dst). Each file is then moved/copied, replacing/skipping depending on the global settings.
+
+The default behaviour is to read from `./data/dump` which contains some sample files. A migration plan is prepared and executed (copy + rename) to separate images, videos, audio, and archives in corresponding subdirectories under `./data/staging`. Following the prompts you can the migrate over to `./data/server.`
 
 **Example of tree**
 

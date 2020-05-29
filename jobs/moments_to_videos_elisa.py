@@ -51,12 +51,19 @@ def main() -> None:
     # Find extensions of files to keep
     leave = pd.Series([os.path.splitext(f)[1] for f in files if os.path.splitext(f)[1] not in keep]).unique()
 
-    # Build a table of files metadata
-    meta = file_metadata(files=files_to_move)
+    # describe files (string ops, fast)
+    shallow = filedesc_shallow(files=files_to_move)
+
+    # grub stats for each file (slower)
+    deep = filedesc_deep(files=files_to_move)
+
+    # Combine
+    description = pd.merge(shallow, deep, how="outer", on="abspath_src")
 
     # Build a migration table
-    table = migration_table(df=meta, dirs=arguments.server)
+    table = migration_table(df=description, dirs=arguments.server)
     print("Plan ready.")
+
 
     # Execute plan
     execute(df=table, mode=arguments.mode, replace=arguments.replace)
