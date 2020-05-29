@@ -13,11 +13,17 @@ def plan(*, source:str, destinations:dict, ignore:bool) -> pd.DataFrame:
     if len(files) == 0:
         return
 
-    # Build a table of files metadata
-    meta = file_metadata(files=files)
+    # describe files (string ops, fast)
+    shallow = filedesc_shallow(files=files)
+
+    # grub stats for each file (slower)
+    deep = filedesc_deep(files=files)
+
+    # Combine
+    description = pd.merge(shallow, deep, how="outer", on="abspath_src").head()
 
     # Build a migration table
-    table = migration_table(df=meta, dirs=destinations)
+    table = migration_table(df=description, dirs=destinations)
     print("Plan ready.")
 
     return table
@@ -48,11 +54,43 @@ def ls_recursive(*, src_dir:str, ignore=[]) -> List[str]:
     return output
 
 
-def file_metadata(files:List[str]) -> pd.DataFrame:
+def filedesc_shallow(files:List[str]) -> pd.DataFrame:
+    """
+    Returns a table with basename, extension and file type as inferred
+    by looking at the extension. All string operations, really fast.
+    """
+    # Extract basenames
+    df = pd.DataFrame()
+    df["abspath_src"] = files
+    df["basename_src"] = [os.path.basename(f) for f in files]
+
+    # Add file anme and extension
+    df["filename_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[0])
+    df["extension_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[1])
+    df["extension"] = df["extension_src"].str.lower()
+
+    # Left join table with file_types
+    lookup = extensions_and_types()
+    output = pd.merge(df, lookup, how="left", left_on="extension_src", right_on="file_ext")
+
+    missing_types = output["file_type"].isnull()
+    missing = missing_types.sum()
+    unknown_extensions = list(output.loc[missing_types, "extension_src"].unique())
+
+    if missing>0:
+        Warning(f"Ignoring a total of {missing} unknown files ({unknown_extensions}).")
+        output = output.dropna(axis=0, how="any",subset=["file_type"]).reset_index(drop=True)
+
+    return output
+
+
+def filedesc_deep(files:List[str]) -> pd.DataFrame:
     """
     Takes a list of absolute pahts to files on a mounted volume,
-    and returns a table with file metadata.
+    and returns a table with file stats like ctime, mtime, size...
+    Requires file system access, and may be slow on a remote drive.
     """
+
     # Collect file stats for each file
     file_stats = [os.stat(f) for f in files]
     print(f"{len(files)} files stats collected...")
@@ -68,23 +106,13 @@ def file_metadata(files:List[str]) -> pd.DataFrame:
     # Cast datetimes
     df["st_mtime"] = pd.to_datetime(df["st_mtime"], unit="s")
     df["st_ctime"] = pd.to_datetime(df["st_ctime"], unit="s")
-    # Extract basenames
-    basenames = [os.path.basename(f) for f in files]
     df["abspath_src"] = files
-    df["basename_src"] = basenames
-
-    # Add file anme and extension
-    df["filename_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[0])
-    df["extension_src"] = df["basename_src"].apply(lambda x: os.path.splitext(x)[1])
 
     # Assume creation time is min(c_time, m_time)
     df["created_at"] = df[["st_mtime","st_ctime"]].min(axis=1)
     print(f"stats table built...")
 
-    output = add_filetype(table=df)
-    print(f"file types inferred...")
-
-    return output
+    return df
 
 
 def migration_table(*, df: pd.DataFrame, dirs:dict) -> pd.DataFrame:
