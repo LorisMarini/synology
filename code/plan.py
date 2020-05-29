@@ -20,10 +20,10 @@ def plan(*, source:str, destinations:dict, ignore:bool) -> pd.DataFrame:
     deep = filedesc_deep(files=files)
 
     # Combine
-    description = pd.merge(shallow, deep, how="outer", on="abspath_src").head()
+    description = pd.merge(shallow, deep, how="outer", on="abspath_src")
 
     # Build a migration table
-    table = migration_table(df=description, dirs=destinations)
+    table = migration_table(df=description, dirs=arguments.server)
     print("Plan ready.")
 
     return table
@@ -71,15 +71,14 @@ def filedesc_shallow(files:List[str]) -> pd.DataFrame:
 
     # Left join table with file_types
     lookup = extensions_and_types()
-    output = pd.merge(df, lookup, how="left", left_on="extension_src", right_on="file_ext")
+    output = pd.merge(df, lookup, how="left", left_on="extension", right_on="file_ext")
 
     missing_types = output["file_type"].isnull()
     missing = missing_types.sum()
-    unknown_extensions = list(output.loc[missing_types, "extension_src"].unique())
+    unknown_extensions = list(output.loc[missing_types, "extension"].unique())
 
     if missing>0:
-        Warning(f"Ignoring a total of {missing} unknown files ({unknown_extensions}).")
-        output = output.dropna(axis=0, how="any",subset=["file_type"]).reset_index(drop=True)
+        print(f"WARNING: {missing} files with unknown extensions {unknown_extensions}.")
 
     return output
 
@@ -93,7 +92,6 @@ def filedesc_deep(files:List[str]) -> pd.DataFrame:
 
     # Collect file stats for each file
     file_stats = [os.stat(f) for f in files]
-    print(f"{len(files)} files stats collected...")
 
     # Unpack metrics. Full list of metrics at:
     # https://docs.python.org/3.8/library/os.html#os.stat_result.st_size
@@ -110,7 +108,6 @@ def filedesc_deep(files:List[str]) -> pd.DataFrame:
 
     # Assume creation time is min(c_time, m_time)
     df["created_at"] = df[["st_mtime","st_ctime"]].min(axis=1)
-    print(f"stats table built...")
 
     return df
 
@@ -143,9 +140,14 @@ def migration_table(*, df: pd.DataFrame, dirs:dict) -> pd.DataFrame:
     # Deduplicate files based on the destination basename (includes timestamp)
     is_duplicate = df.duplicated(subset=["basename_dst"], keep="first")
     output = df[~is_duplicate].reset_index(drop=True)
+    print(f"{is_duplicate.sum()}/{len(df)} files ignored because duplicated")
 
-    print(f"\n{is_duplicate.sum()}/{len(df)} files duplicated and ignored"
-          f"\n{output.shape[0]} total files to migrate...")
+    # Drop files with missing file_type
+    unknowns = output["file_type"].isnull().sum()
+    output = output.dropna(axis=0, how="any",subset=["file_type"]).reset_index(drop=True)
+    print(f"{unknowns}/{len(df)} files ignored because extensions not recognized")
+
+    print(f"{output.shape[0]}/{len(df)} files to migrate.")
 
     if output.shape[0] > 0:
         print("\nExample of migration table:")

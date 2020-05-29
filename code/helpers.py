@@ -28,9 +28,9 @@ def extensions_and_types():
     Builds a dataframe of known file extensions and their types (image, video, audio, archive).
     """
     image_ext = [".xmp", ".jpg", ".jpeg", ".png", ".gif", ".cr2",
-                 ".tif", ".bmp", ".psd", ".ico", ".svg"]
+                 ".tif", ".bmp", ".psd", ".ico", ".svg", ".thm"]
 
-    video_ext = [".mp4", ".mov", ".avi", ".wmv", ".wav",".web"]
+    video_ext = [".mp4", ".mov", ".avi", ".wmv", ".wav",".web", ".mpg"]
     audio_ext = [".mid",".mp3",".m4a",".ogg",".fla",".wav",".amr"]
 
     archive_ext = [".epub", ".zip",".tar",".gz",".bz2",".pdf",".exe",".ps",".sqlite",
