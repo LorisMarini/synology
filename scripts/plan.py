@@ -30,7 +30,11 @@ def ls_recursive(*, src_dir:str, ignore=[]) -> List[str]:
     containing any of the patterns to ignore.
     """
     # Search for all files recursively
-    files = [name for name in glob.glob(f"{src_dir}/**/*.*", recursive=True)]
+    print("Listing all files recursively...")
+    files = []
+    iterator = glob.iglob(f"{src_dir}/**/*.*", recursive=True)
+    for fn in tqdm(iterator):
+        files.append(fn)
 
     if ignore:
         files = pd.DataFrame(files, index=range(len(files)), columns=["files"])

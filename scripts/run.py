@@ -15,7 +15,7 @@ from execute import *
 
 def default_staging_paths():
 
-    staging_home = '/Volumes/p1_exfat/staging'
+    staging_home = '/Volumes/loris/VideoStaging'
 
     output = {"HOME": staging_home,
               "image": f"{staging_home}/image",
@@ -43,7 +43,7 @@ def default_ignore():
 class Arguments:
     # Dump directory
     # dump: str = field(default ='/Users/lorismarini/ds918/dump')
-    dump: str = field(default ="/Volumes/p1_exfat/dump")
+    dump: str = field(default ="/Volumes/loris/VideoDump")
     # Staging directories
     staging: dict = field(default_factory = default_staging_paths)
     # server directories
@@ -80,6 +80,8 @@ def main() -> None:
 
     if stage_data == "y":
 
+        validate_staging(args)
+
         # Prepare migration
         p = plan(source=args.dump, destinations=args.staging, ignore=args.ignore)
         # Execute migration
@@ -94,6 +96,13 @@ def main() -> None:
             p = plan(source=staging_home, destinations=args.server, ignore=args.ignore)
             # Execute migration
             execute(df=p, mode=args.mode, replace=args.replace)
+
+            # Cleanup
+            options = ["y", "n"]
+            question = (f"\nDo you want to clean {staging_home}? {'/'.join(options)}: ")
+            clean = cli_ask_question(question=question, options=options)
+            if clean == "y":
+                clean_directory(staging_home)
         else:
             print(f"\nAll files are ready to load in {staging_home}. Abortng.")
             return
@@ -103,7 +112,9 @@ def main() -> None:
         p = plan(source=args.dump, destinations=args.server, ignore=args.ignore)
 
         # Save plan to file for inspection
-        saveas = f"{str(pd.Timestamp.now())} direct_migration_plan.csv"
+        timenow = pd.Timestamp.now()
+        timestring = timenow.strftime("%Y%m%d_%H%M%S_%f")
+        saveas = f"./.plans/{timestring}_server_plan.csv"
         p.to_csv(saveas)
 
         # Confirm load job
@@ -116,12 +127,7 @@ def main() -> None:
         else:
             print(f"\nAbortng.")
             return
-    # Cleanup
-    options = ["y", "n"]
-    question = (f"\nDo you want to clean {staging_home}? {'/'.join(options)}: ")
-    clean = cli_ask_question(question=question, options=options)
-    if clean == "y":
-        clean_directory(staging_home)
+
 
 
 if __name__ == "__main__":

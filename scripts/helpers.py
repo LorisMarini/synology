@@ -30,8 +30,7 @@ def extensions_and_types():
     image_ext = [".xmp", ".jpg", ".jpeg", ".png", ".gif", ".cr2",
                  ".tif", ".bmp", ".psd", ".ico", ".svg"]
 
-    video_ext = [".mp4", ".mov", ".avi", ".wmv", ".web"]
-
+    video_ext = [".mp4", ".mov", ".avi", ".wmv", ".wav",".web"]
     audio_ext = [".mid",".mp3",".m4a",".ogg",".fla",".wav",".amr"]
 
     archive_ext = [".epub", ".zip",".tar",".gz",".bz2",".pdf",".exe",".ps",".sqlite",

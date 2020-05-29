@@ -9,17 +9,7 @@ def check_dir(path:str):
                          f"or inexistent in the filesystem.")
 
 
-def validate_args(arguments):
-
-    # Check type
-    for field in fields(arguments):
-        value = getattr(arguments, field.name)
-        if type(value) != field.type:
-            message = f"Expected type {field.type} for {field.name}, got {type(value)}"
-            raise TypeError(message)
-
-    # Make sure dump is mounted
-    check_dir(arguments.dump)
+def validate_staging(arguments):
 
     # Make sure staging are mounted and accessible
     for key, value in arguments.staging.items():
@@ -32,6 +22,19 @@ def validate_args(arguments):
                 # Make directory is staging
                 os.makedirs(value, exist_ok=False)
                 print(f"could not find directory {value}, just created one.")
+
+
+def validate_args(arguments):
+
+    # Check type
+    for field in fields(arguments):
+        value = getattr(arguments, field.name)
+        if type(value) != field.type:
+            message = f"Expected type {field.type} for {field.name}, got {type(value)}"
+            raise TypeError(message)
+
+    # Make sure dump is mounted
+    check_dir(arguments.dump)
 
     # Make sure staging are mounted and accessible
     for key, value in arguments.server.items():
