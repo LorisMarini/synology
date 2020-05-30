@@ -1,6 +1,107 @@
 from imports import *
 
 
+def staging_paths(home:str) -> dict:
+
+    output = {"HOME": home,
+              "image": f"{home}/image",
+              "video": f"{home}/video",
+              "audio": f"{home}/audio",
+              "archive": f"{home}/archive"}
+    return output
+
+
+def server_paths(home:str) -> dict:
+
+    output = {"HOME": home,
+              "image": f"{home}/photo",
+              "video": f"{home}/video",
+              "audio": f"{home}/photo",
+              "archive": f"{home}/documents"}
+    return output
+
+
+@dataclass(init=True, repr=True)
+class Arguments:
+    # Dump directory
+    dump: str
+    # Staging directories
+    staging: dict
+    # server directories
+    server: dict
+    # Any file extensions to ignore
+    ignore: list
+    # If existing files are found
+    replace: bool = False
+    # Migration mode
+    mode: str = 'copy'
+
+    def __iter__(self):
+        for attr, value in self.__dict__.items():
+            yield attr, value
+
+    def __str__(self):
+        return (f"\nMigration settings:"
+                f"\n  dump: {self.dump}"
+                f"\n  staging_home: {self.staging['HOME']}"
+                f"\n  server_home: {self.server['HOME']}"
+                f"\n  ignore: {self.ignore}"
+                f"\n  replace: {self.replace}"
+                f"\n  mode: {self.mode}")
+
+    def __post_init__(self):
+
+        # Check types
+        for field in fields(self):
+            value = getattr(self, field.name)
+            if type(value) != field.type:
+                message = f"Expected type {field.type} for {field.name}, got {type(value)}"
+                raise TypeError(message)
+
+        # Make sure dump is mounted
+        check_dir(self.dump)
+
+        # Make sure server are mounted and accessible
+        for key, value in self.server.items():
+            check_dir(self.server[key])
+
+        # Check mode is allowed
+        allowed_modes = ["copy", "move"]
+        if self.mode not in allowed_modes:
+            raise ValueError(f"mode can be one of {allowed_modes}, passes {self.mode}")
+
+        # Make sure staging and server direcotry keys match with file types
+        file_types = list(extensions_and_types()["file_type"].unique())
+        staging_keys = list(self.staging.keys())
+        staging_keys.remove("HOME")
+        for k in staging_keys:
+            if k not in file_types:
+                raise ValueError(f"supported files types are {file_types}. "
+                                 f"Key {k} not supported in staging dict.")
+
+
+def check_dir(path:str):
+
+    if not os.path.isdir(path):
+        raise ValueError(f"directory {path} not accessible "
+                         f"or inexistent in the filesystem.")
+
+
+def validate_staging(arguments):
+
+    # Make sure staging are mounted and accessible
+    for key, value in arguments.staging.items():
+        try:
+            check_dir(arguments.staging[key])
+        except Exception as ex:
+            if key == "HOME":
+                raise ex
+            else:
+                # Make directory is staging
+                os.makedirs(value, exist_ok=False)
+                print(f"could not find directory {value}, just created one.")
+
+
 def add_filetype(*, table:pd.DataFrame) -> pd.DataFrame:
     """
     Expects two columns in table: "basename_src", "extension_src"
@@ -30,10 +131,10 @@ def extensions_and_types():
     image_ext = [".xmp", ".jpg", ".jpeg", ".png", ".gif", ".cr2",
                  ".tif", ".bmp", ".psd", ".ico", ".svg", ".thm"]
 
-    video_ext = [".mp4", ".mov", ".avi", ".wmv", ".wav",".web", ".mpg"]
+    video_ext = [".mp4", ".mov", ".avi", ".wmv", ".wav",".web", ".mpg", ".swf"]
     audio_ext = [".mid",".mp3",".m4a",".ogg",".fla",".wav",".amr"]
 
-    archive_ext = [".epub", ".zip",".tar",".gz",".bz2",".pdf",".exe",".ps",".sqlite",
+    archive_ext = [".txt", ".epub", ".zip",".tar",".gz",".bz2",".pdf",".exe",".ps",".sqlite",
                    ".doc",".docx",".xls",".xlsx",".ppt",".pptx",".odt",".ods",".odp",
                    ".rtf"]
 

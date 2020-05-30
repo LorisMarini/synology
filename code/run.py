@@ -1,13 +1,15 @@
 #!/Users/lorismarini/anaconda3/bin/python
 
-"""
+USAGE = """
 This solves the problem of organizing content automatically
 based on the date of creation, as well as loading it to the
 server while keeping track of any errors thet might arise.
+
+Example 1:
+    python run.py -r "True" -m "copy" -i "['.jsonl', '.json', '.aae']" --dump "~/dump" --staging "~/stg" --server "~/server"
 """
 
 from imports import *
-from validate import *
 from helpers import *
 from plan import *
 from execute import *
@@ -15,65 +17,53 @@ from execute import *
 code = pathlib.Path(__file__).parent.absolute()
 data = code.parent / "data"
 
-def default_staging_paths():
 
-    staging_home = str(data / "staging")
-
-    output = {"HOME": staging_home,
-              "image": f"{staging_home}/image",
-              "video": f"{staging_home}/video",
-              "audio": f"{staging_home}/audio",
-              "archive": f"{staging_home}/archive"}
-    return output
-
-def default_server_paths():
-
-    server_home = str(data / "server")
-
-    output = {"HOME": server_home,
-              "image": f"{server_home}/photo",
-              "video": f"{server_home}/video",
-              "audio": f"{server_home}/photo",
-              "archive": f"{server_home}/documents"}
-    return output
-
-def default_ignore():
-    return ['.jsonl', '.json', '.aae']
-
-
-@dataclass(init=True, repr=True)
-class Arguments:
-    # Dump directory
-    # dump: str = field(default ='/Users/lorismarini/ds918/dump')
-    dump: str = field(default = str(data / "dump"))
-    # Staging directories
-    staging: dict = field(default_factory = default_staging_paths)
-    # server directories
-    server: dict = field(default_factory = default_server_paths)
-    # Any file extensions to ignore
-    ignore: list = field(default_factory = default_ignore)
-    # If existing files are found
-    replace: bool = False
-    # Migration mode
-    mode: str = 'copy'
+def optionally_clean_dir(directory):
+    # Cleanup
+    options = ["y", "n"]
+    question = (f"\nDo you want to clean {directory}? {'/'.join(options)}: ")
+    clean = cli_ask_question(question=question, options=options)
+    if clean == "y":
+        clean_directory(directory)
+    return
 
 
 def main() -> None:
 
-    # Instantiate default args object
-    args = Arguments()
+    mode_help = "Mode help."
 
-    # Validate and assign args to a global variable
-    validate_args(args)
+    # Get the description from the docstring of the function
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     usage=USAGE)
+
+    # Set values of default arguments
+    parser.set_defaults(dump="",
+                        staging=str(data / "staging"),
+                        server=str(data / "server"),
+                        ignore=['.jsonl', '.json', '.aae'],
+                        replace=False,
+                        mode="copy")
+
+    parser.add_argument('-d', '--dump', type=str, required=False, help=mode_help)
+    parser.add_argument('--staging', type=str, required=False, help=mode_help)
+    parser.add_argument('--server', type=str, required=False, help=mode_help)
+    parser.add_argument('-i', '--ignore', type=list, required=False, help=mode_help)
+    parser.add_argument('-r', '--replace', type=bool, required=False, help=mode_help)
+    parser.add_argument('-m', '--mode', type=str, required=False, help=mode_help)
+
+    # Parse parameters
+    cli_args = parser.parse_args()
+
+    # Instantiate default args object
+    args = Arguments(cli_args.dump,
+                    staging_paths(cli_args.staging),
+                    server_paths(cli_args.server),
+                    cli_args.ignore,
+                    cli_args.replace,
+                    cli_args.mode)
+    print(args)
 
     staging_home = args.staging["HOME"]
-
-    print(f"\nMigration settings:"
-          f"\n  dump: {args.dump}"
-          f"\n  staging_home: {args.staging['HOME']}"
-          f"\n  server_home: {args.server['HOME']}"
-          f"\n  replace: {args.replace}"
-          f"\n  mode: {args.mode}")
 
     # Get user input
     options = ["y", "n"]
@@ -86,6 +76,7 @@ def main() -> None:
 
         # Prepare migration
         p = plan(source=args.dump, destinations=args.staging, ignore=args.ignore)
+
         # Execute migration
         execute(df=p, mode=args.mode, replace=args.replace)
 
@@ -94,17 +85,14 @@ def main() -> None:
         q = (f"\nReady to load data to the server? {'/'.join(o)}: ")
         a = cli_ask_question(question=q, options=o)
         if a == "y":
+
             # Prepare migration
             p = plan(source=staging_home, destinations=args.server, ignore=args.ignore)
             # Execute migration
             execute(df=p, mode=args.mode, replace=args.replace)
-
             # Cleanup
-            options = ["y", "n"]
-            question = (f"\nDo you want to clean {staging_home}? {'/'.join(options)}: ")
-            clean = cli_ask_question(question=question, options=options)
-            if clean == "y":
-                clean_directory(staging_home)
+            optionally_clean_dir(staging_home)
+
         else:
             print(f"\nAll files are ready to load in {staging_home}. Abortng.")
             return
@@ -112,12 +100,6 @@ def main() -> None:
     else:
         # Prepare migration
         p = plan(source=args.dump, destinations=args.server, ignore=args.ignore)
-
-        # Save plan to file for inspection
-        timenow = pd.Timestamp.now()
-        timestring = timenow.strftime("%Y%m%d_%H%M%S_%f")
-        saveas = f"./.plans/{timestring}_server_plan.csv"
-        p.to_csv(saveas)
 
         # Confirm load job
         o = ["y", "n"]

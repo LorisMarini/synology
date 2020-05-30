@@ -1,6 +1,10 @@
 MANIFEST
 .plans
 
+data/staging
+data/server
+_plans
+
 build
 dist
 _build

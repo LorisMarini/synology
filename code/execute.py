@@ -1,6 +1,11 @@
 from imports import *
 from helpers import *
 
+# Get the directory of this file
+here = pathlib.Path(__file__).parent.absolute()
+# FInd plans directory
+plans_dir = here.parent / "_plans"
+
 
 def execute(*, df:pd.DataFrame, mode:str, replace:str):
 
@@ -28,13 +33,20 @@ def execute(*, df:pd.DataFrame, mode:str, replace:str):
     skipped = report_table["skipped"].sum()
     error = report_table["error"].count()
 
-    print(f"\nMigration complete. Report:"
+    print(f"\nMigration complete:"
           f"\n{copied} files copied"
           f"\n{moved} files moved"
           f"\n{skipped} files skipped"
           f"\n{error} errors")
 
     print(tabulate(report_table, headers=list(report_table.columns)))
+
+    # Save plan to file for inspection
+    timenow = pd.Timestamp.now()
+    timestring = timenow.strftime("%Y%m%d_%H%M%S_%f")
+    saveas = plans_dir / f"{timestring}_migration_report.csv"
+    report_table.to_csv(saveas)
+    print(f"Report ready at {saveas}")
 
 
 def migrate_file(*, src:str, dst:str, mode:str, replace:bool) -> dict:

@@ -1,6 +1,11 @@
 from imports import *
 from helpers import *
 
+# Get the directory of this file
+here = pathlib.Path(__file__).parent.absolute()
+# FInd plans directory
+plans_dir = here.parent / "_plans"
+
 
 def plan(*, source:str, destinations:dict, ignore:bool) -> pd.DataFrame:
     """
@@ -24,7 +29,13 @@ def plan(*, source:str, destinations:dict, ignore:bool) -> pd.DataFrame:
 
     # Build a migration table
     table = migration_table(df=description, dirs=destinations)
-    print("Plan ready.")
+
+    # Save plan to file for inspection
+    timenow = pd.Timestamp.now()
+    timestring = timenow.strftime("%Y%m%d_%H%M%S_%f")
+    saveas = plans_dir / f"{timestring}_plan.csv"
+    table.to_csv(saveas)
+    print(f"Plan ready at {saveas}")
 
     return table
 
