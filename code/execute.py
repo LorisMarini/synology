@@ -9,6 +9,8 @@ plans_dir = here.parent / "_plans"
 
 def execute(*, df:pd.DataFrame, mode:str, replace:str):
 
+    print(f"\nExecuting...")
+
     # Create destination directories if they don't exist
     dst_dirs = df["abspath_dst"].apply(lambda x: os.path.dirname(x))
     dst_dirs_unique = dst_dirs.unique()
@@ -33,20 +35,19 @@ def execute(*, df:pd.DataFrame, mode:str, replace:str):
     skipped = report_table["skipped"].sum()
     error = report_table["error"].count()
 
-    print(f"\nMigration complete:"
-          f"\n{copied} files copied"
-          f"\n{moved} files moved"
-          f"\n{skipped} files skipped"
-          f"\n{error} errors")
-
-    print(tabulate(report_table, headers=list(report_table.columns)))
+    print(f"\n - copied {copied}"
+          f"\n - moved {moved}"
+          f"\n - skipped {skipped}"
+          f"\n - errors {error}")
 
     # Save plan to file for inspection
-    timenow = pd.Timestamp.now()
-    timestring = timenow.strftime("%Y%m%d_%H%M%S_%f")
+    timestring = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S_%f")
     saveas = plans_dir / f"{timestring}_migration_report.csv"
     report_table.to_csv(saveas)
-    print(f"Report ready at {saveas}")
+
+    print(f"\nReport ready ({os.path.basename(saveas)})")
+    print(f"Preview:\n")
+    print(tabulate(report_table.head(), headers=list(report_table.columns)))
 
 
 def migrate_file(*, src:str, dst:str, mode:str, replace:bool) -> dict:
@@ -66,7 +67,6 @@ def migrate_file(*, src:str, dst:str, mode:str, replace:bool) -> dict:
         if os.path.exists(dst) and not replace:
             # If it already exists and we don't want to relace skip
             report["skipped"] = True
-            print(f"File already exists in dst and replace={replace}.")
         else:
             # File in src exists
             if mode =="copy":

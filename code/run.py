@@ -63,55 +63,43 @@ def main() -> None:
                     cli_args.mode)
     print(args)
 
-    staging_home = args.staging["HOME"]
-
     # Get user input
-    options = ["y", "n"]
-    question = (f"\nDo you want to stage files fist? {'/'.join(options)}: ")
-    stage_data = cli_ask_question(question=question, options=options)
+    stage_opts = ["y", "n"]
+    stage_question = (f"\nDo you want to stage files? {'/'.join(stage_opts)}: ")
+    stage_answer = cli_ask_question(question=stage_question, options=stage_opts)
 
-    if stage_data == "y":
+    if stage_answer == "y":
 
         validate_staging(args)
 
-        # Prepare migration
-        p = plan(source=args.dump, destinations=args.staging, ignore=args.ignore)
+        # Prepare migration from dump
+        plan_staging = plan(source=args.dump, destinations=args.staging, ignore=args.ignore)
 
         # Execute migration
-        execute(df=p, mode=args.mode, replace=args.replace)
+        execute(df=plan_staging, mode=args.mode, replace=args.replace)
 
-        # Confirm load job
-        o = ["y", "n"]
-        q = (f"\nReady to load data to the server? {'/'.join(o)}: ")
-        a = cli_ask_question(question=q, options=o)
-        if a == "y":
-
-            # Prepare migration
-            p = plan(source=staging_home, destinations=args.server, ignore=args.ignore)
-            # Execute migration
-            execute(df=p, mode=args.mode, replace=args.replace)
-            # Cleanup
-            optionally_clean_dir(staging_home)
-
-        else:
-            print(f"\nAll files are ready to load in {staging_home}. Abortng.")
-            return
+        # Prepare migration to server from staging
+        plan_server = plan(source=args.staging["HOME"], destinations=args.server, ignore=args.ignore)
 
     else:
-        # Prepare migration
-        p = plan(source=args.dump, destinations=args.server, ignore=args.ignore)
+        # Prepare direct migration to server
+        plan_server = plan(source=args.dump, destinations=args.server, ignore=args.ignore)
 
-        # Confirm load job
-        o = ["y", "n"]
-        q = (f"\nPlan saved at {saveas}. \nReady to load data to the server? {'/'.join(o)}: ")
-        a = cli_ask_question(question=q, options=o)
-        if a == "y":
-            # Execute migration
-            execute(df=p, mode=args.mode, replace=args.replace)
-        else:
-            print(f"\nAbortng.")
-            return
+    # Confirm load job
+    load_options = ["y", "n"]
+    load_question = (f"\nReady to load data to the server? {'/'.join(load_options)}: ")
+    load_answer = cli_ask_question(question=load_question, options=load_options)
 
+    if load_answer == "y":
+        # Execute migration
+        execute(df=plan_server, mode=args.mode, replace=args.replace)
+    else:
+        print(f"\nAll files are ready to load in staging. Abortng.")
+        return
+
+    if stage_answer == "y":
+        # Cleanup
+        optionally_clean_dir(args.staging["HOME"])
 
 if __name__ == "__main__":
     main()

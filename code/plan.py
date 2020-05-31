@@ -11,7 +11,6 @@ def plan(*, source:str, destinations:dict, ignore:bool) -> pd.DataFrame:
     """
     From
     """
-    print("Building a migration plan...")
 
     # List files in src and ignore some
     files = ls_recursive(src_dir=source, ignore=ignore)
@@ -30,13 +29,6 @@ def plan(*, source:str, destinations:dict, ignore:bool) -> pd.DataFrame:
     # Build a migration table
     table = migration_table(df=description, dirs=destinations)
 
-    # Save plan to file for inspection
-    timenow = pd.Timestamp.now()
-    timestring = timenow.strftime("%Y%m%d_%H%M%S_%f")
-    saveas = plans_dir / f"{timestring}_plan.csv"
-    table.to_csv(saveas)
-    print(f"Plan ready at {saveas}")
-
     return table
 
 
@@ -47,7 +39,7 @@ def ls_recursive(*, src_dir:str, ignore=[]) -> List[str]:
     containing any of the patterns to ignore.
     """
     # Search for all files recursively
-    print("Listing all files recursively...")
+    print("\nListing all files recursively...")
     files = []
     iterator = glob.iglob(f"{src_dir}/**/*.*", recursive=True)
     for fn in tqdm(iterator):
@@ -57,11 +49,11 @@ def ls_recursive(*, src_dir:str, ignore=[]) -> List[str]:
         files = pd.DataFrame(files, index=range(len(files)), columns=["files"])
         where = any_words_in_column(files, column="files", words=ignore, verbose=False)
         output = files.loc[~where, "files"].to_list()
-        print(f"{where.sum()}/{len(files)} files ignored because contain one or more of {ignore}")
+        print(f"\t{where.sum()}/{len(files)} ignored (patterns {ignore})")
     else:
         output = files
 
-    print(f"{len(files)} total files found in src_dir")
+    print(f"\t{len(files)} total files found in src_dir")
     return output
 
 
@@ -70,6 +62,8 @@ def filedesc_shallow(files:List[str]) -> pd.DataFrame:
     Returns a table with basename, extension and file type as inferred
     by looking at the extension. All string operations, really fast.
     """
+    # Search for all files recursively
+    print("\nDescribing files (shallow)...")
     # Extract basenames
     df = pd.DataFrame()
     df["abspath_src"] = files
@@ -89,7 +83,7 @@ def filedesc_shallow(files:List[str]) -> pd.DataFrame:
     unknown_extensions = list(output.loc[missing_types, "extension"].unique())
 
     if missing>0:
-        print(f"WARNING: {missing} files with unknown extensions {unknown_extensions}.")
+        print(f"\tWARNING: {missing} unknown extension(s) {unknown_extensions}.")
 
     return output
 
@@ -100,6 +94,9 @@ def filedesc_deep(files:List[str]) -> pd.DataFrame:
     and returns a table with file stats like ctime, mtime, size...
     Requires file system access, and may be slow on a remote drive.
     """
+
+    # Search for all files recursively
+    print("\nDescribing files (deep)...")
 
     # Collect file stats for each file
     file_stats = [os.stat(f) for f in files]
@@ -134,6 +131,9 @@ def migration_table(*, df: pd.DataFrame, dirs:dict) -> pd.DataFrame:
         - extension_src:
         - created_at:
     """
+    # Search for all files recursively
+    print("\nCreating migration table...")
+
     # Create basename of file at destination
     df = create_basename_dst(df)
 
@@ -151,18 +151,20 @@ def migration_table(*, df: pd.DataFrame, dirs:dict) -> pd.DataFrame:
     # Deduplicate files based on the destination basename (includes timestamp)
     is_duplicate = df.duplicated(subset=["basename_dst"], keep="first")
     output = df[~is_duplicate].reset_index(drop=True)
-    print(f"{is_duplicate.sum()}/{len(df)} files ignored because duplicated")
 
     # Drop files with missing file_type
     unknowns = output["file_type"].isnull().sum()
     output = output.dropna(axis=0, how="any",subset=["file_type"]).reset_index(drop=True)
-    print(f"{unknowns}/{len(df)} files ignored because extensions not recognized")
 
-    print(f"{output.shape[0]}/{len(df)} files to migrate.")
+    print(f"\t{is_duplicate.sum()}/{len(df)} ignored (duplicated)")
+    print(f"\t{unknowns}/{len(df)} ignored (extension)")
+    print(f"\t{output.shape[0]}/{len(df)} to migrate")
 
-    if output.shape[0] > 0:
-        print("\nExample of migration table:")
-        print(output.iloc[0].T)
-        print("\n")
+    # Save plan to file for inspection
+    timenow = pd.Timestamp.now()
+    timestring = timenow.strftime("%Y%m%d_%H%M%S_%f")
+    saveas = plans_dir / f"{timestring}_plan.csv"
+    output.to_csv(saveas)
+    print(f"\n\tMigration plan ready ({os.path.basename(saveas)})")
 
     return output

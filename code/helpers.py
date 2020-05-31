@@ -72,12 +72,13 @@ class Arguments:
 
         # Make sure staging and server direcotry keys match with file types
         file_types = list(extensions_and_types()["file_type"].unique())
-        staging_keys = list(self.staging.keys())
-        staging_keys.remove("HOME")
-        for k in staging_keys:
-            if k not in file_types:
-                raise ValueError(f"supported files types are {file_types}. "
-                                 f"Key {k} not supported in staging dict.")
+        # Get keys used to map staging volumes
+        staging_keys = [k for k in self.staging.keys() if k is not "HOME"]
+        # Find keys that do not appear in file_types
+        notmaching_keys = [k for k in staging_keys if k not in file_types]
+        if notmaching_keys:
+            raise ValueError(f"supported files types are {file_types}. "
+                             f"Key {k} not supported in staging dict.")
 
 
 def check_dir(path:str):
