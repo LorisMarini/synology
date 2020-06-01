@@ -18,7 +18,7 @@ Here we read from `./data/dump` which contains some sample files. A migration pl
 
 Output tree:
 
-```
+```zsh
 ├── data
 │   ├── server
 │   │   ├── audio
@@ -43,6 +43,10 @@ Output tree:
 ```
 
 CLI script
+
+```zsh
+python ./code/run.py --dump "./data/dump" --staging "./data/staging" --server "./data/server"
+```
 
 ![Demo](./images/cli_demo.gif)
 
