@@ -16,7 +16,7 @@ A zoo of devices generates content of different types, sizes, and naming and con
 
 By default this reads from `./data/dump` which contains some sample files. A migration plan is prepared and executed (copy + rename) to separate images, videos, audio, and archives in corresponding subdirectories under `./data/staging`. Here is a demo:
 
-[![IMAGE ALT TEXT HERE](http://img.youtube.com/vi/tLQYUkjQG2A/0.jpg)](http://www.youtube.com/watch?v=tLQYUkjQG2A?start=6)
+![Demo](./images/cli_demo.gif)
 
 ### Must Haves
 
