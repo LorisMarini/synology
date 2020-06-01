@@ -3,18 +3,6 @@
 This Script assumes that the server has multiple volumes, each
 corresponding to one of four file types, and mounted on different
 points on /Volumes.
-
-On macOS:
-1. locate the internal (LAN) IP address <my.ip.addr.ess> of yor server (e.g. 192.168.1.110)
-2. From finder 'cmd + K' and type 'afp://<my.ip.addr.ess>'. Replace 'afp' with 'smb' to user Samba3.
-3. Authenticate with userbame and pw and you should see the volume mounted
-4. You should see the four volumes: for me are:
-    - /Volums/photo
-    - /Volums/video
-    - /Volums/photo
-    - /Volums/documents
-
-If you get lazy write a script that does this for you.
 """
 
 from imports import *
@@ -63,7 +51,6 @@ def main() -> None:
     # Build a migration table
     table = migration_table(df=description, dirs=arguments.server)
     print("Plan ready.")
-
 
     # Execute plan
     execute(df=table, mode=arguments.mode, replace=arguments.replace)
